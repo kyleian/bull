@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  bull:
+    image: ghcr.io/kyleian/bull:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Scan behaviour — override any BULL_ setting here
+      BULL_SCAN_MODE: ${BULL_SCAN_MODE:-all}
+      BULL_OUTPUT_FORMAT: ${BULL_OUTPUT_FORMAT:-console}
+      BULL_CONCURRENCY: ${BULL_CONCURRENCY:-10}
+      # Email (optional — only needed for output_format=email)
+      BULL_GMAIL_ADDRESS: ${BULL_GMAIL_ADDRESS:-}
+      BULL_GMAIL_APP_PASSWORD: ${BULL_GMAIL_APP_PASSWORD:-}
+      BULL_TO_EMAIL: ${BULL_TO_EMAIL:-}
+    volumes:
+      # Mount a local output directory if you want --out-file results
+      - ./output:/output
+    restart: "no"
+
+  # Scheduled scan helper (run via `docker compose run scheduler`)
+  scheduler:
+    image: ghcr.io/kyleian/bull:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      BULL_SCAN_MODE: all
+      BULL_OUTPUT_FORMAT: email
+      BULL_GMAIL_ADDRESS: ${BULL_GMAIL_ADDRESS}
+      BULL_GMAIL_APP_PASSWORD: ${BULL_GMAIL_APP_PASSWORD}
+      BULL_TO_EMAIL: ${BULL_TO_EMAIL}
+    restart: "no"
+    command: ["--mode", "all", "--output", "email"]
