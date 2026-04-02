@@ -24,7 +24,9 @@ from pathlib import Path
 import click
 
 from bull.__version__ import __version__
-from bull.config import OutputFormat, ScanMode
+from bull.config import OutputFormat, ScanMode, Universe
+
+log = logging.getLogger(__name__)
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -72,10 +74,17 @@ def main() -> None:
     help="Write JSON output to this file (only used when --output json).",
 )
 @click.option(
+    "--universe",
+    type=click.Choice([u.value for u in Universe], case_sensitive=False),
+    default=Universe.SP500.value,
+    show_default=True,
+    help="Ticker universe: sp500 | nasdaq100 | dow30 | etf | mutual_fund | all",
+)
+@click.option(
     "--tickers",
     type=str,
     default=None,
-    help="Comma-separated list of tickers to scan instead of full S&P 500.",
+    help="Comma-separated tickers (overrides --universe).",
 )
 @click.option(
     "--concurrency",
@@ -88,28 +97,36 @@ def scan(
     mode: str,
     output: str,
     out_file: Path | None,
+    universe: str,
     tickers: str | None,
     concurrency: int | None,
     verbose: bool,
 ) -> None:
     """
-    Scan S&P 500 tickers and report trading signals.
+    Scan a ticker universe and report trading signals.
 
     \b
     Examples:
       bull scan
-      bull scan --mode bullish --output json
-      bull scan --mode all --output email
+      bull scan --universe nasdaq100
+      bull scan --universe etf --mode bearish
+      bull scan --universe mutual_fund --mode all
+      bull scan --universe all --mode bullish
       bull scan --tickers AAPL,MSFT,NVDA
     """
     _configure_logging(verbose)
 
     # Lazy imports so startup is fast for --help
+    from bull.data.tickers import get_tickers_for_universe
     from bull.scanner import run_all_modes, run_scan
 
+    # --tickers overrides --universe
     ticker_list: list[str] | None = None
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    else:
+        ticker_list = get_tickers_for_universe(universe)
+        log.info("Universe '%s': %d tickers loaded.", universe, len(ticker_list))
 
     scan_mode = ScanMode(mode)
     output_format = OutputFormat(output)

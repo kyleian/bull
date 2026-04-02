@@ -25,6 +25,15 @@ class OutputFormat(StrEnum):
     EMAIL = "email"
 
 
+class Universe(StrEnum):
+    SP500 = "sp500"
+    NASDAQ100 = "nasdaq100"
+    DOW30 = "dow30"
+    ETF = "etf"
+    MUTUAL_FUND = "mutual_fund"
+    ALL = "all"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="BULL_",
@@ -37,6 +46,7 @@ class Settings(BaseSettings):
     # ── Scan behaviour ────────────────────────────────────────────────────────
     scan_mode: ScanMode = ScanMode.ALL
     output_format: OutputFormat = OutputFormat.CONSOLE
+    universe: Universe = Universe.SP500
     concurrency: int = Field(default=10, ge=1, le=50)
 
     # ── Data fetching ─────────────────────────────────────────────────────────
