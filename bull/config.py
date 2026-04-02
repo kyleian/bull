@@ -31,7 +31,15 @@ class Universe(StrEnum):
     DOW30 = "dow30"
     ETF = "etf"
     MUTUAL_FUND = "mutual_fund"
+    RUSSELL2000 = "russell2000"
+    ADR = "adr"
+    CRYPTO = "crypto"
     ALL = "all"
+
+
+class DataProvider(StrEnum):
+    YFINANCE = "yfinance"
+    TIINGO = "tiingo"
 
 
 class Settings(BaseSettings):
@@ -43,11 +51,20 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Scan behaviour ────────────────────────────────────────────────────────
+    # -- Scan behaviour --------------------------------------------------------
     scan_mode: ScanMode = ScanMode.ALL
     output_format: OutputFormat = OutputFormat.CONSOLE
     universe: Universe = Universe.SP500
     concurrency: int = Field(default=10, ge=1, le=50)
+
+    # -- Data provider ---------------------------------------------------------
+    data_provider: DataProvider = DataProvider.YFINANCE
+    tiingo_api_key: str | None = None          # required when data_provider=tiingo
+    finnhub_api_key: str | None = None         # optional: free tier for extra news
+
+    # -- Sentiment -------------------------------------------------------------
+    enable_sentiment: bool = True              # set False to skip news/social fetch
+    enable_market_regime: bool = True          # set False to skip SPY/VIX regime check
 
     # ── Data fetching ─────────────────────────────────────────────────────────
     history_days: int = Field(default=90, ge=30)

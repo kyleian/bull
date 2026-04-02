@@ -15,6 +15,30 @@ from typing import Literal
 ScanMode = Literal["bullish", "bearish", "neutral"]
 
 
+@dataclass
+class SentimentData:
+    """Aggregated news + social sentiment for a ticker."""
+
+    score: float = 0.0               # -1.0 very bearish -> +1.0 very bullish
+    direction: str = "neutral"       # "bullish" | "bearish" | "neutral"
+    confidence: float = 0.0
+    headline_count: int = 0
+    social_bulls: int = 0
+    social_bears: int = 0
+    top_headlines: list[str] = field(default_factory=list)
+    catalyst_summary: str = ""
+
+
+@dataclass
+class MarketRegimeSnapshot:
+    """Broad-market regime context snapshot embedded in a signal."""
+
+    regime: str = "unknown"          # "bull" | "bear" | "volatile" | "recovery" | "sideways"
+    spy_vs_sma200_pct: float = 0.0
+    vix: float = 0.0
+    summary: str = ""
+
+
 @dataclass(slots=True)
 class Indicators:
     """Pre-computed technical indicators for a single ticker."""
@@ -70,7 +94,8 @@ class Signal:
 
     rationale: list[str]                # human-readable bullet points
     risk_reward: float                  # quick target R:R ratio
-
+    sentiment: SentimentData = field(default_factory=SentimentData)
+    regime: MarketRegimeSnapshot = field(default_factory=MarketRegimeSnapshot)
     option_expirations: list[str] = field(default_factory=list)
     suggested_strikes: dict[str, float] = field(default_factory=dict)
     expected_option_profit_pct: float = 0.0
@@ -81,7 +106,28 @@ class Signal:
 
     @property
     def star_display(self) -> str:
-        return "★" * self.stars + "☆" * (5 - self.stars)
+        return "*" * self.stars + "-" * (5 - self.stars)
+
+    @property
+    def sentiment_label(self) -> str:
+        """Short one-word sentiment direction with confidence indicator."""
+        arrow = {"bullish": "[+]", "bearish": "[-]", "neutral": "[~]"}.get(
+            self.sentiment.direction, "[?]"
+        )
+        conf = f"{self.sentiment.confidence:.0%}" if self.sentiment.confidence > 0 else "low data"
+        return f"{arrow} {self.sentiment.direction} ({conf} confidence)"
+
+    @property
+    def regime_label(self) -> str:
+        """Short regime label for display."""
+        icons = {
+            "bull": "[BULL MKT]",
+            "bear": "[BEAR MKT]",
+            "volatile": "[VOLATILE]",
+            "recovery": "[RECOVERY]",
+            "sideways": "[SIDEWAYS]",
+        }
+        return icons.get(self.regime.regime, "[UNKNOWN]")
 
 
 @dataclass(slots=True)

@@ -112,6 +112,30 @@ def _render_signal(sig: Signal) -> None:
     rationale_text = "\n".join(f"- {r}" for r in sig.rationale)
     _CONSOLE.print(f"[bold]Why:[/bold]\n{rationale_text}")
 
+    # Sentiment
+    if sig.sentiment.headline_count > 0 or sig.sentiment.social_bulls or sig.sentiment.social_bears:
+        sent_color = "green" if sig.sentiment.direction == "bullish" else ("red" if sig.sentiment.direction == "bearish" else "yellow")
+        _CONSOLE.print(
+            f"[bold]Sentiment:[/bold] [{sent_color}]{sig.sentiment_label}[/{sent_color}] "
+            f"[dim](score {sig.sentiment.score:+.2f}, "
+            f"{sig.sentiment.headline_count} headlines, "
+            f"bulls {sig.sentiment.social_bulls} / bears {sig.sentiment.social_bears})[/dim]"
+        )
+        if sig.sentiment.catalyst_summary:
+            _CONSOLE.print(f"  [italic]{sig.sentiment.catalyst_summary}[/italic]")
+        for headline in sig.sentiment.top_headlines[:3]:
+            _CONSOLE.print(f"  [dim]- {headline[:120]}[/dim]")
+
+    # Market regime
+    if sig.regime.regime:
+        regime_color = "green" if sig.regime.regime == "bull" else ("red" if sig.regime.regime == "bear" else "yellow")
+        _CONSOLE.print(
+            f"[bold]Market Regime:[/bold] [{regime_color}]{sig.regime_label}[/{regime_color}] "
+            f"[dim](VIX {sig.regime.vix:.1f}, SPY vs SMA200 {sig.regime.spy_vs_sma200_pct:+.1f}%)[/dim]"
+        )
+        if sig.regime.summary:
+            _CONSOLE.print(f"  [italic dim]{sig.regime.summary}[/italic dim]")
+
     # Options
     strikes = sig.suggested_strikes
     opt_text = (

@@ -82,7 +82,7 @@ def main() -> None:
     type=click.Choice([u.value for u in Universe], case_sensitive=False),
     default=Universe.SP500.value,
     show_default=True,
-    help="Ticker universe: sp500 | nasdaq100 | dow30 | etf | mutual_fund | all",
+    help="Ticker universe: sp500 | nasdaq100 | dow30 | etf | mutual_fund | russell2000 | adr | crypto | all",
 )
 @click.option(
     "--tickers",
@@ -115,6 +115,9 @@ def scan(
       bull scan --universe nasdaq100
       bull scan --universe etf --mode bearish
       bull scan --universe mutual_fund --mode all
+      bull scan --universe russell2000 --mode bullish
+      bull scan --universe adr --mode all
+      bull scan --universe crypto --mode bullish
       bull scan --universe all --mode bullish
       bull scan --tickers AAPL,MSFT,NVDA
     """

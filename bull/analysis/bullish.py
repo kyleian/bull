@@ -75,6 +75,38 @@ def scan_bullish(data: MarketData) -> Signal | None:
         indicators = extract_indicators(df)
         rationale = _build_rationale(data, indicators, matched)
 
+        # -- Sentiment + market regime (optional, non-fatal) ------------------
+        from bull.models.signal import SentimentData, MarketRegimeSnapshot
+        sentiment = SentimentData()
+        regime_snap = MarketRegimeSnapshot()
+
+        if settings.enable_sentiment:
+            try:
+                from bull.analysis import sentiment as SA
+                sentiment = SA.analyse(ticker, tuple(data.news_headlines))
+                if sentiment.catalyst_summary:
+                    rationale.append(f"[NEWS] {sentiment.catalyst_summary}")
+            except Exception as exc:
+                log.debug("[%s] sentiment analysis failed (non-fatal): %s", ticker, exc)
+
+        if settings.enable_market_regime:
+            try:
+                from bull.analysis import market_regime as MR
+                regime = MR.detect()
+                regime_snap = MarketRegimeSnapshot(
+                    regime=regime.regime,
+                    spy_vs_sma200_pct=regime.spy_vs_sma200_pct,
+                    vix=regime.vix,
+                    summary=regime.summary,
+                )
+                rationale.append(f"[MARKET] {regime.summary}")
+                if regime.regime == "bear":
+                    rationale.append("[CAUTION] Bullish signal in bear market — treat as counter-trend, reduce position size.")
+                elif regime.regime == "volatile":
+                    rationale.append("[CAUTION] High volatility environment — widen stops, reduce position size.")
+            except Exception as exc:
+                log.debug("[%s] regime detection failed (non-fatal): %s", ticker, exc)
+
         return build_signal(
             ticker=ticker,
             company_name=data.company_name,
@@ -88,6 +120,8 @@ def scan_bullish(data: MarketData) -> Signal | None:
             rationale=rationale,
             direction="up",
             above_threshold=above,
+            sentiment=sentiment,
+            regime=regime_snap,
         )
 
     except Exception as exc:

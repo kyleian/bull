@@ -23,7 +23,7 @@ from bull.analysis import patterns as P
 from bull.analysis.technical import add_all
 from bull.config import settings
 from bull.data.market import MarketData
-from bull.models.signal import PatternMatch, Signal
+from bull.models.signal import PatternMatch, Signal, SentimentData, MarketRegimeSnapshot
 from bull.scoring import score_patterns
 from bull.analysis._shared import build_signal
 
@@ -67,6 +67,33 @@ def scan_neutral(data: MarketData) -> Signal | None:
         indicators = extract_indicators(df)
         rationale = _build_rationale(indicators, matched)
 
+        # -- Sentiment + market regime ----------------------------------------
+        sentiment = SentimentData()
+        regime_snap = MarketRegimeSnapshot()
+
+        if settings.enable_sentiment:
+            try:
+                from bull.analysis import sentiment as SA
+                sentiment = SA.analyse(ticker, tuple(data.news_headlines))
+                if sentiment.catalyst_summary:
+                    rationale.append(f"[NEWS] {sentiment.catalyst_summary}")
+            except Exception as exc:
+                log.debug("[%s] sentiment analysis failed (non-fatal): %s", ticker, exc)
+
+        if settings.enable_market_regime:
+            try:
+                from bull.analysis import market_regime as MR
+                regime = MR.detect()
+                regime_snap = MarketRegimeSnapshot(
+                    regime=regime.regime,
+                    spy_vs_sma200_pct=regime.spy_vs_sma200_pct,
+                    vix=regime.vix,
+                    summary=regime.summary,
+                )
+                rationale.append(f"[MARKET] {regime.summary}")
+            except Exception as exc:
+                log.debug("[%s] regime detection failed (non-fatal): %s", ticker, exc)
+
         return build_signal(
             ticker=ticker,
             company_name=data.company_name,
@@ -80,6 +107,8 @@ def scan_neutral(data: MarketData) -> Signal | None:
             rationale=rationale,
             direction="up",
             above_threshold=above,
+            sentiment=sentiment,
+            regime=regime_snap,
         )
 
     except Exception as exc:

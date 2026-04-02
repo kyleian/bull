@@ -1,94 +1,63 @@
 """
-Market data fetching layer.
+Market data fetching -- provider dispatcher.
 
-Wraps yfinance with:
-  - Robust error handling (network, empty frame, delisted tickers)
-  - Uniform DataFrame shape validation
-  - Company metadata extraction (name, sector, description)
+Selects the backend based on BULL_DATA_PROVIDER:
+  yfinance  (default) -- free, ~60 req/min rate limit, no key needed
+  tiingo              -- $10/mo Starter, unlimited EOD + news
+                        Sign up: https://www.tiingo.com/account/api/token
+                        Set BULL_TIINGO_API_KEY=<your_key> in .env
+
+Both providers return the same MarketData interface so the rest of the
+codebase is completely provider-agnostic.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 
-import pandas as pd
-import yfinance as yf
-
-from bull.config import settings
-from bull.exceptions import InsufficientDataError, MarketDataError
+from bull.config import DataProvider, settings
+from bull.data.providers.base import MarketData  # re-export for backwards compat
+from bull.exceptions import MarketDataError
 
 log = logging.getLogger(__name__)
 
+_provider = None
 
-@dataclass(slots=True)
-class MarketData:
-    """All raw data for a single ticker ready for analysis."""
 
-    ticker: str
-    df: pd.DataFrame          # OHLCV history, date-indexed, timezone-naive UTC
-    company_name: str = "Unknown"
-    sector: str = "Unknown"
-    description: str = ""
+def _get_provider():
+    global _provider
+    if _provider is None:
+        if settings.data_provider == DataProvider.TIINGO:
+            if not settings.tiingo_api_key:
+                log.warning(
+                    "BULL_DATA_PROVIDER=tiingo but BULL_TIINGO_API_KEY is not set. "
+                    "Falling back to yfinance. "
+                    "Get your key at https://www.tiingo.com/account/api/token"
+                )
+                from bull.data.providers.yfinance_provider import YFinanceProvider
+                _provider = YFinanceProvider()
+            else:
+                from bull.data.providers.tiingo_provider import TiingoProvider
+                _provider = TiingoProvider()
+                log.info("Using Tiingo data provider.")
+        else:
+            from bull.data.providers.yfinance_provider import YFinanceProvider
+            _provider = YFinanceProvider()
+    return _provider
 
 
 def fetch_market_data(ticker: str) -> MarketData:
     """
     Fetch OHLCV history and company metadata for *ticker*.
 
-    Parameters
-    ----------
-    ticker:
-        Ticker symbol (yfinance format, e.g. ``"BRK-B"``).
-
-    Returns
-    -------
-    MarketData
+    Delegates to the configured provider (yfinance or Tiingo).
 
     Raises
     ------
-    MarketDataError
-        Any network or parsing error that prevents data retrieval.
-    InsufficientDataError
-        When fewer rows than ``settings.min_history_rows`` are available.
+    MarketDataError / InsufficientDataError
+        Propagated from the active provider.
     """
-    try:
-        stock = yf.Ticker(ticker)
-        df = stock.history(period=f"{settings.history_days}d")
-    except Exception as exc:
-        raise MarketDataError(ticker, f"yfinance fetch failed: {exc}") from exc
+    return _get_provider().fetch(ticker)
 
-    if df.empty:
-        raise MarketDataError(ticker, "empty price history (possibly delisted)")
 
-    # Normalise index — drop timezone so pandas arithmetic is uniform
-    if hasattr(df.index, "tz") and df.index.tz is not None:
-        df.index = df.index.tz_convert("UTC").tz_localize(None)
-
-    if len(df) < settings.min_history_rows:
-        raise InsufficientDataError(
-            ticker,
-            f"only {len(df)} rows available, need ≥ {settings.min_history_rows}",
-        )
-
-    # ── Company metadata (best-effort — never fatal) ──────────────────────────
-    company_name = ticker
-    sector = "Unknown"
-    description = ""
-    try:
-        info = stock.info or {}
-        company_name = info.get("shortName") or info.get("longName") or ticker
-        sector = info.get("sector") or "Unknown"
-        # Truncate long summaries to avoid bloating reports
-        raw_desc = info.get("longBusinessSummary") or ""
-        description = raw_desc[:400] + ("…" if len(raw_desc) > 400 else "")
-    except Exception as exc:
-        log.debug("[%s] metadata fetch failed (non-fatal): %s", ticker, exc)
-
-    return MarketData(
-        ticker=ticker,
-        df=df,
-        company_name=company_name,
-        sector=sector,
-        description=description,
-    )
+__all__ = ["fetch_market_data", "MarketData"]

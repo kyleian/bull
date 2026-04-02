@@ -12,7 +12,7 @@ from datetime import date, timedelta
 import numpy as np
 import pandas as pd
 
-from bull.models.signal import Indicators, PatternMatch, Signal
+from bull.models.signal import Indicators, PatternMatch, Signal, SentimentData, MarketRegimeSnapshot
 
 
 def extract_indicators(df: pd.DataFrame) -> Indicators:
@@ -96,6 +96,8 @@ def build_signal(
     rationale: list[str],
     direction: str = "up",
     above_threshold: bool = True,
+    sentiment: SentimentData | None = None,
+    regime: MarketRegimeSnapshot | None = None,
 ) -> Signal:
     close = float(df["Close"].iloc[-1])
     atr = indicators.atr_14 if not math.isnan(indicators.atr_14) else close * 0.02
@@ -121,8 +123,12 @@ def build_signal(
         indicators=indicators,
         patterns=patterns,
         score=round(score, 2),
-        stars=max(1, min(5, round(score / 2))),        above_threshold=above_threshold,        rationale=rationale,
+        stars=max(1, min(5, round(score / 2))),
+        above_threshold=above_threshold,
+        rationale=rationale,
         risk_reward=round(rr, 2),
+        sentiment=sentiment or SentimentData(),
+        regime=regime or MarketRegimeSnapshot(),
         option_expirations=_next_fridays(),
         suggested_strikes=_suggest_strikes(close, tq),
         expected_option_profit_pct=round(((tq - close) / close * 100) * 2.5, 1),
