@@ -58,7 +58,6 @@ def run_scan(
     ticker_list = tickers or get_sp500_tickers()
     workers = concurrency or settings.concurrency
 
-    signals: list[Signal] = []
     errors: dict[str, str] = {}
 
     log.info("Starting %s scan over %d tickers (concurrency=%d)", mode, len(ticker_list), workers)
@@ -76,26 +75,41 @@ def run_scan(
             log.warning("[%s] unexpected error: %s", ticker, exc)
             return None
 
+    # Collect ALL candidates (above and below threshold) so we can always
+    # surface at least min_results picks even on a quiet day.
+    all_candidates: list[Signal] = []
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(_process, t): t for t in ticker_list}
         done = 0
         for future in as_completed(futures):
             result = future.result()
             if result is not None:
-                signals.append(result)
+                all_candidates.append(result)
             done += 1
             if done % 50 == 0:
-                log.info("Progress: %d/%d scanned, %d signals so far", done, len(ticker_list), len(signals))
+                log.info("Progress: %d/%d scanned, %d candidates so far", done, len(ticker_list), len(all_candidates))
 
+    # Sort best-first, then split into confirmed signals vs fill picks
+    all_candidates.sort(key=lambda s: s.score, reverse=True)
+    confirmed = [s for s in all_candidates if s.above_threshold]
+    picks = [s for s in all_candidates if not s.above_threshold]
+
+    min_r = settings.min_results
+    # Always include all confirmed; pad with best picks to reach min_results
+    shortfall = max(0, min_r - len(confirmed))
+    surfaced = confirmed + picks[:shortfall]
+
+    signals_count = len(confirmed)
     log.info(
-        "%s scan complete: %d/%d tickers produced signals, %d errors",
-        mode, len(signals), len(ticker_list), len(errors),
+        "%s scan complete: %d confirmed signal(s), %d watch pick(s) surfaced, %d errors",
+        mode, signals_count, len(surfaced) - signals_count, len(errors),
     )
     return ScanResult(
         mode=str(mode),
         total_scanned=len(ticker_list),
-        total_signals=len(signals),
-        signals=sorted(signals, key=lambda s: s.score, reverse=True),
+        total_signals=signals_count,
+        signals=surfaced,
         errors=errors,
     )
 

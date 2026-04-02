@@ -35,8 +35,6 @@ _DETECTORS: list[tuple] = [
     (P.consolidation_range,  3.0),
 ]
 
-_MIN_NEUTRAL_SCORE = 1.5
-
 
 def scan_neutral(data: MarketData) -> Signal | None:
     """
@@ -60,12 +58,14 @@ def scan_neutral(data: MarketData) -> Signal | None:
             return None
 
         score = score_patterns(matched, _DETECTORS)
-        if score < _MIN_NEUTRAL_SCORE:
-            return None
+        above = score >= settings.min_signal_score
+        if above:
+            log.info("[%s] neutral signal (score %.2f)", ticker, score)
+        else:
+            log.debug("[%s] neutral candidate (score %.2f)", ticker, score)
 
         indicators = extract_indicators(df)
         rationale = _build_rationale(indicators, matched)
-        log.info("[%s] neutral signal (score %.2f)", ticker, score)
 
         return build_signal(
             ticker=ticker,
@@ -78,7 +78,8 @@ def scan_neutral(data: MarketData) -> Signal | None:
             patterns=matched,
             score=score,
             rationale=rationale,
-            direction="up",  # neutral assumes upside breakout as target
+            direction="up",
+            above_threshold=above,
         )
 
     except Exception as exc:

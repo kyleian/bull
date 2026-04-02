@@ -22,6 +22,13 @@ _MODE_STYLE: dict[str, str] = {
     "neutral": "bold yellow",
 }
 
+_WATCH_LABEL = "[dim]\u25cf WATCH PICK[/dim]"
+_SIGNAL_LABEL_MAP: dict[str, str] = {
+    "bullish": "[bold green]\u2714 SIGNAL[/bold green]",
+    "bearish": "[bold red]\u2714 SIGNAL[/bold red]",
+    "neutral": "[bold yellow]\u2714 SIGNAL[/bold yellow]",
+}
+
 
 class ConsoleReporter:
     """Renders a ``ScanResult`` to stdout using Rich."""
@@ -30,16 +37,21 @@ class ConsoleReporter:
         if not result.signals:
             _CONSOLE.print(
                 Panel(
-                    f"[dim]No {result.mode} signals found for {result.scan_date}.[/dim]",
+                    f"[dim]No {result.mode} picks found for {result.scan_date}.[/dim]",
                     title="Bull Scanner",
                 )
             )
             return
 
-        _CONSOLE.rule(f"[bold]Bull Scanner — {result.mode.upper()} — {result.scan_date}[/bold]")
+        confirmed = result.total_signals
+        total = len(result.signals)
+        watch_count = total - confirmed
+
+        _CONSOLE.rule(f"[bold]Bull Scanner \u2014 {result.mode.upper()} \u2014 {result.scan_date}[/bold]")
         _CONSOLE.print(
             f"  Scanned: [cyan]{result.total_scanned}[/cyan]  "
-            f"Signals: [bold]{result.total_signals}[/bold]  "
+            f"Confirmed signals: [bold green]{confirmed}[/bold green]  "
+            f"Watch picks: [dim]{watch_count}[/dim]  "
             f"Errors: [dim]{len(result.errors)}[/dim]\n"
         )
 
@@ -61,11 +73,12 @@ class ConsoleReporter:
 
 def _render_signal(sig: Signal) -> None:
     style = _MODE_STYLE.get(sig.mode, "white")
+    label = _SIGNAL_LABEL_MAP.get(sig.mode, "[bold]\u2714 SIGNAL[/bold]") if sig.above_threshold else _WATCH_LABEL
 
-    # Header panel — ticker, name, description
+    # Header panel
     _CONSOLE.print(
         Panel(
-            f"[bold]{sig.ticker}[/bold] — {sig.company_name}\n"
+            f"{label}  [bold]{sig.ticker}[/bold] \u2014 {sig.company_name}\n"
             f"[dim]{sig.sector}[/dim]\n\n"
             f"[italic dim]{sig.description[:220]}[/italic dim]",
             title=f"[{style}]{sig.ticker} — {sig.mode.upper()}[/{style}]",

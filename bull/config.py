@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     min_body_pct: float = Field(default=0.8, ge=0.0)
     min_volume_ratio: float = Field(default=1.10, ge=1.0)
     min_signal_score: float = Field(default=1.5, ge=0.0)
+    min_results: int = Field(default=5, ge=1)  # always surface at least this many picks per mode
 
     # ── Email output (only required when output_format=email) ─────────────────
     gmail_address: str | None = None

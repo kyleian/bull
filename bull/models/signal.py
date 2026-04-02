@@ -66,6 +66,7 @@ class Signal:
 
     score: float                        # 0.0 – 10.0 composite score
     stars: int                          # 1 – 5 rounded display rating
+    above_threshold: bool               # True = confirmed signal; False = best available pick
 
     rationale: list[str]                # human-readable bullet points
     risk_reward: float                  # quick target R:R ratio

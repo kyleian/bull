@@ -66,13 +66,14 @@ def scan_bullish(data: MarketData) -> Signal | None:
             return None
 
         score = score_patterns(matched, _DETECTORS)
-        if score < settings.min_signal_score:
-            log.debug("[%s] score %.2f below threshold", ticker, score)
-            return None
+        above = score >= settings.min_signal_score
+        if above:
+            log.info("[%s] bullish signal (score %.2f)", ticker, score)
+        else:
+            log.debug("[%s] bullish candidate (score %.2f, below threshold)", ticker, score)
 
         indicators = extract_indicators(df)
         rationale = _build_rationale(data, indicators, matched)
-        log.info("[%s] bullish signal (score %.2f)", ticker, score)
 
         return build_signal(
             ticker=ticker,
@@ -86,6 +87,7 @@ def scan_bullish(data: MarketData) -> Signal | None:
             score=score,
             rationale=rationale,
             direction="up",
+            above_threshold=above,
         )
 
     except Exception as exc:

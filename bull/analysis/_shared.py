@@ -95,6 +95,7 @@ def build_signal(
     score: float,
     rationale: list[str],
     direction: str = "up",
+    above_threshold: bool = True,
 ) -> Signal:
     close = float(df["Close"].iloc[-1])
     atr = indicators.atr_14 if not math.isnan(indicators.atr_14) else close * 0.02
@@ -120,8 +121,7 @@ def build_signal(
         indicators=indicators,
         patterns=patterns,
         score=round(score, 2),
-        stars=max(1, min(5, round(score / 2))),
-        rationale=rationale,
+        stars=max(1, min(5, round(score / 2))),        above_threshold=above_threshold,        rationale=rationale,
         risk_reward=round(rr, 2),
         option_expirations=_next_fridays(),
         suggested_strikes=_suggest_strikes(close, tq),

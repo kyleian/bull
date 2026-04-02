@@ -59,12 +59,14 @@ def scan_bearish(data: MarketData) -> Signal | None:
             return None
 
         score = score_patterns(matched, _DETECTORS)
-        if score < settings.min_signal_score:
-            return None
+        above = score >= settings.min_signal_score
+        if above:
+            log.info("[%s] bearish signal (score %.2f)", ticker, score)
+        else:
+            log.debug("[%s] bearish candidate (score %.2f, below threshold)", ticker, score)
 
         indicators = extract_indicators(df)
         rationale = _build_rationale(data, indicators, matched)
-        log.info("[%s] bearish signal (score %.2f)", ticker, score)
 
         return build_signal(
             ticker=ticker,
@@ -78,6 +80,7 @@ def scan_bearish(data: MarketData) -> Signal | None:
             score=score,
             rationale=rationale,
             direction="down",
+            above_threshold=above,
         )
 
     except Exception as exc:
