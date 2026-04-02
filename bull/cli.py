@@ -23,6 +23,10 @@ from pathlib import Path
 
 import click
 
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+
 from bull.__version__ import __version__
 from bull.config import OutputFormat, ScanMode, Universe
 

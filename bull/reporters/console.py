@@ -22,11 +22,11 @@ _MODE_STYLE: dict[str, str] = {
     "neutral": "bold yellow",
 }
 
-_WATCH_LABEL = "[dim]\u25cf WATCH PICK[/dim]"
+_WATCH_LABEL = "[dim]~ WATCH PICK[/dim]"
 _SIGNAL_LABEL_MAP: dict[str, str] = {
-    "bullish": "[bold green]\u2714 SIGNAL[/bold green]",
-    "bearish": "[bold red]\u2714 SIGNAL[/bold red]",
-    "neutral": "[bold yellow]\u2714 SIGNAL[/bold yellow]",
+    "bullish": "[bold green][SIGNAL][/bold green]",
+    "bearish": "[bold red][SIGNAL][/bold red]",
+    "neutral": "[bold yellow][SIGNAL][/bold yellow]",
 }
 
 
@@ -47,7 +47,7 @@ class ConsoleReporter:
         total = len(result.signals)
         watch_count = total - confirmed
 
-        _CONSOLE.rule(f"[bold]Bull Scanner \u2014 {result.mode.upper()} \u2014 {result.scan_date}[/bold]")
+        _CONSOLE.rule(f"[bold]Bull Scanner -- {result.mode.upper()} -- {result.scan_date}[/bold]")
         _CONSOLE.print(
             f"  Scanned: [cyan]{result.total_scanned}[/cyan]  "
             f"Confirmed signals: [bold green]{confirmed}[/bold green]  "
@@ -73,15 +73,15 @@ class ConsoleReporter:
 
 def _render_signal(sig: Signal) -> None:
     style = _MODE_STYLE.get(sig.mode, "white")
-    label = _SIGNAL_LABEL_MAP.get(sig.mode, "[bold]\u2714 SIGNAL[/bold]") if sig.above_threshold else _WATCH_LABEL
+    label = _SIGNAL_LABEL_MAP.get(sig.mode, "[bold][SIGNAL][/bold]") if sig.above_threshold else _WATCH_LABEL
 
     # Header panel
     _CONSOLE.print(
         Panel(
-            f"{label}  [bold]{sig.ticker}[/bold] \u2014 {sig.company_name}\n"
+            f"{label}  [bold]{sig.ticker}[/bold] - {sig.company_name}\n"
             f"[dim]{sig.sector}[/dim]\n\n"
             f"[italic dim]{sig.description[:220]}[/italic dim]",
-            title=f"[{style}]{sig.ticker} — {sig.mode.upper()}[/{style}]",
+            title=f"[{style}]{sig.ticker} - {sig.mode.upper()}[/{style}]",
         )
     )
 
@@ -102,14 +102,14 @@ def _render_signal(sig: Signal) -> None:
         tbl.add_row("Stop Loss", f"${sig.stop_loss:.2f}  [dim](-{_pct(sig.entry_price, sig.stop_loss, invert=True):.1f}%)[/dim]")
     tbl.add_row("Risk/Reward", f"{sig.risk_reward:.2f}:1")
     tbl.add_row("ATR-14", f"${sig.indicators.atr_14:.2f}")
-    tbl.add_row("Volume Ratio", f"{sig.indicators.volume_ratio:.2f}×")
+    tbl.add_row("Volume Ratio", f"{sig.indicators.volume_ratio:.2f}x")
     tbl.add_row("RSI-14", f"{sig.indicators.rsi_14:.1f}")
     tbl.add_row("vs SMA-50", f"{sig.indicators.distance_from_sma50:+.1f}%")
 
     _CONSOLE.print(tbl)
 
     # Rationale
-    rationale_text = "\n".join(f"• {r}" for r in sig.rationale)
+    rationale_text = "\n".join(f"- {r}" for r in sig.rationale)
     _CONSOLE.print(f"[bold]Why:[/bold]\n{rationale_text}")
 
     # Options
