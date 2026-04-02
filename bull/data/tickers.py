@@ -16,6 +16,7 @@ Fallbacks: hard-coded lists so scans still run if web requests fail.
 
 from __future__ import annotations
 
+import io
 import logging
 from functools import lru_cache
 
@@ -59,7 +60,7 @@ def get_sp500_tickers() -> list[str]:
         log.debug("Fetching S&P 500 tickers from Wikipedia …")
         resp = requests.get(_SP500_WIKI, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
-        tables = pd.read_html(resp.content)
+        tables = pd.read_html(io.StringIO(resp.text))
         tickers = [str(t).replace(".", "-").strip().upper() for t in tables[0]["Symbol"].tolist()]
         log.info("Fetched %d S&P 500 tickers from Wikipedia.", len(tickers))
         return sorted(set(tickers))
@@ -87,7 +88,7 @@ def get_nasdaq100_tickers() -> list[str]:
         log.debug("Fetching NASDAQ-100 tickers from Wikipedia …")
         resp = requests.get(_NASDAQ100_WIKI, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
-        tables = pd.read_html(resp.content)
+        tables = pd.read_html(io.StringIO(resp.text))
         # Find the table that has a 'Ticker' or 'Symbol' column
         for tbl in tables:
             cols = [str(c).strip() for c in tbl.columns]
