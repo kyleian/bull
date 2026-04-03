@@ -11,6 +11,8 @@ API docs: https://www.tiingo.com/documentation/general/overview
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from datetime import date, timedelta
 from functools import lru_cache
 
@@ -27,9 +29,37 @@ _BASE_URL = "https://api.tiingo.com"
 _SESSION = requests.Session()
 _SESSION.headers.update({"Content-Type": "application/json"})
 
+# Tiingo Starter: ~10 req/sec sustained is safe; semaphore prevents burst spikes
+_RATE_SEM = threading.Semaphore(4)  # max 4 concurrent Tiingo requests
+_MIN_INTERVAL = 0.12  # seconds between requests per thread
+_last_call_lock = threading.Lock()
+_last_call_time: float = 0.0
+
 
 def _headers() -> dict:
     return {"Authorization": f"Token {settings.tiingo_api_key}"}
+
+
+def _tiingo_get(url: str, *, params: dict | None = None, retries: int = 3) -> requests.Response:
+    """Rate-limited GET with retry-on-429 backoff."""
+    global _last_call_time  # noqa: PLW0603
+    for attempt in range(retries):
+        with _RATE_SEM:
+            with _last_call_lock:
+                now = time.monotonic()
+                gap = _MIN_INTERVAL - (now - _last_call_time)
+                if gap > 0:
+                    time.sleep(gap)
+                _last_call_time = time.monotonic()
+            resp = _SESSION.get(url, params=params, headers=_headers(), timeout=15)
+        if resp.status_code == 429:
+            wait = min(2 ** attempt * 1.5, 10.0)
+            log.debug("Tiingo 429 rate-limit hit for %s; backing off %.1fs (attempt %d)", url, wait, attempt + 1)
+            time.sleep(wait)
+            continue
+        return resp
+    resp.raise_for_status()  # raise on final attempt
+    return resp
 
 
 class TiingoProvider(BaseProvider):
@@ -45,11 +75,9 @@ class TiingoProvider(BaseProvider):
         start = (date.today() - timedelta(days=settings.history_days + 10)).isoformat()
 
         try:
-            resp = _SESSION.get(
+            resp = _tiingo_get(
                 f"{_BASE_URL}/tiingo/daily/{ticker}/prices",
                 params={"startDate": start, "resampleFreq": "daily"},
-                headers=_headers(),
-                timeout=15,
             )
             resp.raise_for_status()
             prices = resp.json()
@@ -121,11 +149,7 @@ class TiingoProvider(BaseProvider):
 
 @lru_cache(maxsize=512)
 def _fetch_meta(ticker: str) -> dict:
-    resp = _SESSION.get(
-        f"{_BASE_URL}/tiingo/daily/{ticker}",
-        headers=_headers(),
-        timeout=10,
-    )
+    resp = _tiingo_get(f"{_BASE_URL}/tiingo/daily/{ticker}")
     resp.raise_for_status()
     return resp.json()
 
@@ -133,11 +157,9 @@ def _fetch_meta(ticker: str) -> dict:
 @lru_cache(maxsize=256)
 def _fetch_news(ticker: str, limit: int = 10) -> list[str]:
     """Return up to *limit* recent news headlines for *ticker* from Tiingo."""
-    resp = _SESSION.get(
+    resp = _tiingo_get(
         f"{_BASE_URL}/tiingo/news",
         params={"tickers": ticker, "limit": limit},
-        headers=_headers(),
-        timeout=10,
     )
     resp.raise_for_status()
     articles = resp.json() or []
